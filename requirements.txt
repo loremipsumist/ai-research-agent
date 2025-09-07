@@ -3,3 +3,4 @@ openai
 requests
 reportlab
 trafilatura
+beautifulsoup4
