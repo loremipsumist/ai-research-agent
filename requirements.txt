@@ -1,6 +1,7 @@
-streamlit
-openai
+openai>=1.0.0
 requests
+streamlit
 reportlab
-trafilatura
 beautifulsoup4
+
+
