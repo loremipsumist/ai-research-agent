@@ -86,7 +86,7 @@ Sources:
     """
 
     response = client.chat.completions.create(
-        model="gpt-4o-mini",   # or "gpt-4.1" / "gpt-4o"
+        model="gpt-4.1",   # or "gpt-4.1" / "gpt-4o"
         messages=[{"role": "user", "content": prompt}],
         temperature=0.3,
         max_tokens=600
@@ -147,3 +147,4 @@ if st.button("Run Research") and query:
                 file_name="research_report.md",
                 mime="text/markdown",
             )
+
