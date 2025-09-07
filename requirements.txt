@@ -1,4 +1,5 @@
 streamlit
 openai
 requests
-newspaper3k
+reportlab
+trafilatura
