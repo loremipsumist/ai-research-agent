@@ -2,7 +2,7 @@ import os
 import requests
 import openai
 import streamlit as st
-import trafilatura
+from bs4 import BeautifulSoup
 from io import BytesIO
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
@@ -35,20 +35,34 @@ def search_web(query, num_results=5):
 
 
 def extract_article(url):
-    """Extract main text + metadata from a webpage using trafilatura."""
+    """Extract article text + metadata using BeautifulSoup."""
     try:
-        downloaded = trafilatura.fetch_url(url)
-        if not downloaded:
+        resp = requests.get(url, timeout=10, headers={"User-Agent": "Mozilla/5.0"})
+        if resp.status_code != 200:
             return None
 
-        extracted = trafilatura.extract(downloaded, with_metadata=True, include_comments=False)
-        metadata = trafilatura.metadata.extract_metadata(downloaded)
+        soup = BeautifulSoup(resp.text, "html.parser")
+
+        # Title
+        title = soup.title.string if soup.title else "Unknown Title"
+
+        # Publish date (try meta tags or <time>)
+        publish_date = "Unknown"
+        meta_date = soup.find("meta", {"property": "article:published_time"})
+        if meta_date and meta_date.get("content"):
+            publish_date = meta_date["content"]
+        elif soup.find("time"):
+            publish_date = soup.find("time").get("datetime") or soup.find("time").text.strip()
+
+        # Collect text from paragraphs
+        paragraphs = [p.get_text() for p in soup.find_all("p")]
+        text = "\n".join(paragraphs)
 
         return {
-            "title": metadata.title if metadata and metadata.title else "Unknown Title",
-            "text": extracted if extracted else "",
-            "authors": metadata.authors if metadata and metadata.authors else [],
-            "publish_date": str(metadata.date) if metadata and metadata.date else "Unknown",
+            "title": title,
+            "text": text[:5000],  # limit length
+            "authors": [],  # BS4 can’t reliably fetch authors
+            "publish_date": publish_date,
             "url": url
         }
     except Exception as e:
@@ -72,7 +86,7 @@ Sources:
     """
 
     response = openai.ChatCompletion.create(
-        model="gpt-5",
+        model="gpt-4",
         messages=[{"role": "user", "content": prompt}],
         temperature=0.3,
         max_tokens=600
@@ -107,7 +121,7 @@ if st.button("Run Research") and query:
     with st.spinner("Researching..."):
         results = search_web(query)
         contents = [extract_article(r["link"]) for r in results]
-        contents = [c for c in contents if c]  # remove None
+        contents = [c for c in contents if c]  # drop failed
 
         if not contents:
             st.error("No articles could be extracted.")
@@ -116,7 +130,7 @@ if st.button("Run Research") and query:
             st.markdown("## ✅ Summary")
             st.write(summary)
 
-            # PDF download button
+            # PDF download
             pdf_buffer = export_pdf(summary, query)
             st.download_button(
                 label="📄 Download Report as PDF",
@@ -125,11 +139,10 @@ if st.button("Run Research") and query:
                 mime="application/pdf",
             )
 
-            # Markdown download button
+            # Markdown download
             st.download_button(
                 label="📝 Download Report as Markdown",
                 data=summary,
                 file_name="research_report.md",
                 mime="text/markdown",
             )
-
