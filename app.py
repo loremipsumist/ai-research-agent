@@ -1,18 +1,18 @@
 import os
 import requests
-import openai
 import streamlit as st
 from bs4 import BeautifulSoup
 from io import BytesIO
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
+from openai import OpenAI
 
 # -------------------------------
 # CONFIG
 # -------------------------------
 SERP_API_KEY = st.secrets["SERPAPI_KEY"]
 OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
-openai.api_key = OPENAI_API_KEY
+client = OpenAI(api_key=OPENAI_API_KEY)
 
 
 # -------------------------------
@@ -61,7 +61,7 @@ def extract_article(url):
         return {
             "title": title,
             "text": text[:5000],  # limit length
-            "authors": [],  # BS4 can’t reliably fetch authors
+            "authors": [],
             "publish_date": publish_date,
             "url": url
         }
@@ -71,7 +71,7 @@ def extract_article(url):
 
 
 def summarize_content(content_list, query):
-    """Summarize extracted content using GPT."""
+    """Summarize extracted content using GPT (new OpenAI SDK)."""
     context_texts = "\n\n".join(
         f"Title: {c['title']}\nDate: {c['publish_date']}\nText: {c['text'][:1500]}"
         for c in content_list if c
@@ -85,13 +85,14 @@ Sources:
 {context_texts}
     """
 
-    response = openai.ChatCompletion.create(
-        model="gpt-4",
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",   # or "gpt-4.1" / "gpt-4o"
         messages=[{"role": "user", "content": prompt}],
         temperature=0.3,
         max_tokens=600
     )
-    return response["choices"][0]["message"]["content"]
+
+    return response.choices[0].message.content
 
 
 def export_pdf(summary, query):
