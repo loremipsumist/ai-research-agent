@@ -2,6 +2,7 @@ import streamlit as st#just a shortcut remember
 import os
 import openai
 import requests
+from your_script import ai_research_agent
 from newspaper import Article
 
 
@@ -97,4 +98,5 @@ if st.button("Run Research") and query:
             )
         except Exception as e:
             st.error(f"An error occurred: {e}")
+
 
