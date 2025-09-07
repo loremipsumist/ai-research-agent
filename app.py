@@ -60,4 +60,5 @@ def summarize_content(content_list, query):
 
     prompt = f"""
 You are a research assistant. Summarize the findings for the query: "{query}".
-Use bullet points, highlight key facts, and cite sources with their title and date
+Use bullet points, highlight key facts, and cite sources with their title and date """
+
