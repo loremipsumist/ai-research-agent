@@ -5,9 +5,8 @@ import requests
 from newspaper import Article
 
 
-SERP_API_KEY= "e4425b4940ff2ed9f450ff83fd8bfb84f2381914707a4856dc292738159581df"
-OPENAI_API_KEY= "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"
-openai.api_key=OPENAI_API_KEY
+openai.api_key = st.secrets["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"]
+SERP_API_KEY = st.secrets["e4425b4940ff2ed9f450ff83fd8bfb84f2381914707a4856dc292738159581df"]
 
 def web_search(query, num_results=5):
     """Searching using SerpAPI and returning the top Google search results!"""
@@ -98,3 +97,4 @@ if st.button("Run Research") and query:
             )
         except Exception as e:
             st.error(f"An error occurred: {e}")
+
