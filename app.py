@@ -8,16 +8,16 @@ from newspaper import Article
 openai.api_key = st.secrets["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"]
 SERP_API_KEY = st.secrets["e4425b4940ff2ed9f450ff83fd8bfb84f2381914707a4856dc292738159581df"]
 
-def web_search(query, num_results=5):
-    """Searching using SerpAPI and returning the top Google search results!"""
+def search_web(query, num_results=5):
+    """Search the web using SerpAPI and return top results."""
     url = "https://serpapi.com/search"
     params = {
-        "engine":"google",
-        "q":query,
-        "num": num_of_results,
-        "api_key":SERP_API_KEY #DO NOT SHARE THIS ONE REMEMBER
-     }
-    res= requests.get(url,params=params).json()
+        "engine": "google",
+        "q": query,
+        "num": num_results,
+        "api_key": SERP_API_KEY
+    }
+    res = requests.get(url, params=params).json()
     results = []
     for r in res.get("organic_results", []):
         results.append({
@@ -27,7 +27,7 @@ def web_search(query, num_results=5):
     return results
 
 def extract_article(url):
-    """Extract main text from an article using newspaper3k."""#newspapers3k is the package btw
+    """Extract main text from an article using newspaper3k."""
     try:
         article = Article(url)
         article.download()
@@ -47,7 +47,7 @@ def summarize_content(content_list, query):
         f"Title: {c['title']}\nDate: {c['publish_date']}\nText: {c['text'][:1500]}"
         for c in content_list if c
     )
-    #here, we are using chatgpt and giving it a prompt acc to which it will give ouput
+
     prompt = f"""
 You are a research assistant. Summarize the findings for the query: "{query}".
 Use bullet points, highlight key facts, and cite sources with their title and date.
@@ -57,7 +57,7 @@ Sources:
     """
 
     response = openai.ChatCompletion.create(
-        model="gpt-4", #important maybe, check
+        model="gpt-4",
         messages=[{"role": "user", "content": prompt}],
         temperature=0.3,
         max_tokens=600
