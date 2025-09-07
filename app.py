@@ -1,4 +1,3 @@
-import os
 import requests
 import streamlit as st
 from bs4 import BeautifulSoup
@@ -43,10 +42,9 @@ def extract_article(url):
 
         soup = BeautifulSoup(resp.text, "html.parser")
 
-        # Title
         title = soup.title.string if soup.title else "Unknown Title"
 
-        # Publish date (try meta tags or <time>)
+        # Publish date
         publish_date = "Unknown"
         meta_date = soup.find("meta", {"property": "article:published_time"})
         if meta_date and meta_date.get("content"):
@@ -54,13 +52,12 @@ def extract_article(url):
         elif soup.find("time"):
             publish_date = soup.find("time").get("datetime") or soup.find("time").text.strip()
 
-        # Collect text from paragraphs
         paragraphs = [p.get_text() for p in soup.find_all("p")]
         text = "\n".join(paragraphs)
 
         return {
             "title": title,
-            "text": text[:5000],  # limit length
+            "text": text[:5000],
             "authors": [],
             "publish_date": publish_date,
             "url": url
@@ -71,7 +68,7 @@ def extract_article(url):
 
 
 def summarize_content(content_list, query):
-    """Summarize extracted content using GPT (new OpenAI SDK)."""
+    """Summarize extracted content using GPT with error handling."""
     context_texts = "\n\n".join(
         f"Title: {c['title']}\nDate: {c['publish_date']}\nText: {c['text'][:1500]}"
         for c in content_list if c
@@ -85,18 +82,20 @@ Sources:
 {context_texts}
     """
 
-    response = client.chat.completions.create(
-        model="gpt-5",   # or "gpt-4.1" / "gpt-4o"
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.3,
-        max_tokens=600
-    )
-
-    return response.choices[0].message.content
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",  # ✅ safe, valid model
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3,
+            max_tokens=600
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        st.error(f"OpenAI API error: {e}")
+        return None
 
 
 def export_pdf(summary, query):
-    """Export summary as a PDF file."""
     buffer = BytesIO()
     doc = SimpleDocTemplate(buffer)
     styles = getSampleStyleSheet()
@@ -116,36 +115,35 @@ def export_pdf(summary, query):
 # -------------------------------
 st.set_page_config(page_title="AI Research Agent", page_icon="🔎", layout="wide")
 st.title("🔎 AI Research Agent")
+
 query = st.text_input("Enter your research topic:")
 
 if st.button("Run Research") and query:
     with st.spinner("Researching..."):
         results = search_web(query)
         contents = [extract_article(r["link"]) for r in results]
-        contents = [c for c in contents if c]  # drop failed
+        contents = [c for c in contents if c]
 
         if not contents:
             st.error("No articles could be extracted.")
         else:
             summary = summarize_content(contents, query)
-            st.markdown("## ✅ Summary")
-            st.write(summary)
+            if summary:
+                st.markdown("## ✅ Summary")
+                st.write(summary)
 
-            # PDF download
-            pdf_buffer = export_pdf(summary, query)
-            st.download_button(
-                label="📄 Download Report as PDF",
-                data=pdf_buffer,
-                file_name="research_report.pdf",
-                mime="application/pdf",
-            )
+                pdf_buffer = export_pdf(summary, query)
+                st.download_button(
+                    label="📄 Download Report as PDF",
+                    data=pdf_buffer,
+                    file_name="research_report.pdf",
+                    mime="application/pdf",
+                )
 
-            # Markdown download
-            st.download_button(
-                label="📝 Download Report as Markdown",
-                data=summary,
-                file_name="research_report.md",
-                mime="text/markdown",
-            )
-
+                st.download_button(
+                    label="📝 Download Report as Markdown",
+                    data=summary,
+                    file_name="research_report.md",
+                    mime="text/markdown",
+                )
 
