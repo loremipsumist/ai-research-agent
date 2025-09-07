@@ -2,7 +2,7 @@ import os
 import requests
 import openai
 import streamlit as st
-from newspaper import Article
+import trafilatura
 from io import BytesIO
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
@@ -35,19 +35,24 @@ def search_web(query, num_results=5):
 
 
 def extract_article(url):
-    """Extract main text from an article using newspaper3k."""
+    """Extract main text + metadata from a webpage using trafilatura."""
     try:
-        article = Article(url)
-        article.download()
-        article.parse()
+        downloaded = trafilatura.fetch_url(url)
+        if not downloaded:
+            return None
+
+        extracted = trafilatura.extract(downloaded, with_metadata=True, include_comments=False)
+        metadata = trafilatura.metadata.extract_metadata(downloaded)
+
         return {
-            "title": article.title,
-            "text": article.text,
-            "authors": article.authors,
-            "publish_date": str(article.publish_date) if article.publish_date else "Unknown",
+            "title": metadata.title if metadata and metadata.title else "Unknown Title",
+            "text": extracted if extracted else "",
+            "authors": metadata.authors if metadata and metadata.authors else [],
+            "publish_date": str(metadata.date) if metadata and metadata.date else "Unknown",
             "url": url
         }
-    except Exception:
+    except Exception as e:
+        print(f"❌ Error extracting {url}: {e}")
         return None
 
 
@@ -60,5 +65,70 @@ def summarize_content(content_list, query):
 
     prompt = f"""
 You are a research assistant. Summarize the findings for the query: "{query}".
-Use bullet points, highlight key facts, and cite sources with their title and date """
+Use bullet points, highlight key facts, and cite sources with their title and date.
 
+Sources:
+{context_texts}
+    """
+
+    response = openai.ChatCompletion.create(
+        model="gpt-4",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.3,
+        max_tokens=600
+    )
+    return response["choices"][0]["message"]["content"]
+
+
+def export_pdf(summary, query):
+    """Export summary as a PDF file."""
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer)
+    styles = getSampleStyleSheet()
+    story = []
+
+    story.append(Paragraph(f"Research Report: {query}", styles["Title"]))
+    story.append(Spacer(1, 12))
+    story.append(Paragraph(summary.replace("\n", "<br/>"), styles["Normal"]))
+
+    doc.build(story)
+    buffer.seek(0)
+    return buffer
+
+
+# -------------------------------
+# STREAMLIT APP
+# -------------------------------
+st.set_page_config(page_title="AI Research Agent", page_icon="🔎", layout="wide")
+st.title("🔎 AI Research Agent")
+query = st.text_input("Enter your research topic:")
+
+if st.button("Run Research") and query:
+    with st.spinner("Researching..."):
+        results = search_web(query)
+        contents = [extract_article(r["link"]) for r in results]
+        contents = [c for c in contents if c]  # remove None
+
+        if not contents:
+            st.error("No articles could be extracted.")
+        else:
+            summary = summarize_content(contents, query)
+            st.markdown("## ✅ Summary")
+            st.write(summary)
+
+            # PDF download button
+            pdf_buffer = export_pdf(summary, query)
+            st.download_button(
+                label="📄 Download Report as PDF",
+                data=pdf_buffer,
+                file_name="research_report.pdf",
+                mime="application/pdf",
+            )
+
+            # Markdown download button
+            st.download_button(
+                label="📝 Download Report as Markdown",
+                data=summary,
+                file_name="research_report.md",
+                mime="text/markdown",
+            )
